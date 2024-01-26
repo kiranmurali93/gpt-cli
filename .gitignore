@@ -1,0 +1,36 @@
+# Compiled Object files, Static and Dynamic libs (Shared Objects)
+*.o
+*.a
+*.so
+*.dll
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below if using modules)
+# /vendor/
+
+# Output of the go doc command
+/doc/
+
+# Output of the gofmt tool
+/gofmt.log
+
+# Binary file for profiling
+*.prof
+
+# Compiled Go files
+*.exe
+
+# Log files
+*.log
+
+# OS-specific files
+Thumbs.db
+.DS_Store
+
+#config file
+config.yaml
