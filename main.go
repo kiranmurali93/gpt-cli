@@ -5,13 +5,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var configFile string
@@ -24,26 +25,25 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "config file (default is ./config.yaml)")
+	rootCmd.PersistentFlags().StringVar(&configFile, "config", "./config.yaml", "config file (default is ./config.yaml)")
 }
 
 func initConfig() {
 	if configFile != "" {
-		viper.SetConfigFile("configFile")
+		viper.SetConfigFile(configFile)
 	} else {
 		home, err := os.Getwd()
-
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-
 		viper.AddConfigPath(home)
 		viper.SetConfigName("config")
 	}
 
 	if err := viper.ReadInConfig(); err != nil {
-		fmt.Println("Cant read config file", err)
+		fmt.Println("Can't read config file", err)
+		os.Exit(1)
 	}
 }
 
@@ -60,10 +60,11 @@ func startChat(cmd *cobra.Command, args []string) {
 		userInput, err := getUserInput()
 
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("Error reading input:", err)
+			continue
 		}
 
-		if strings.ToLower(userInput) == "exit\n" {
+		if strings.ToLower(strings.TrimSpace(userInput)) == "exit" {
 			fmt.Println("Ending chat....")
 			os.Exit(0)
 		}
@@ -71,23 +72,19 @@ func startChat(cmd *cobra.Command, args []string) {
 		res, err := getResFromGpt(apiKey, userInput)
 
 		if err != nil {
-			fmt.Println(err)
-			break
+			fmt.Println("Error getting response from GPT:", err)
 			os.Exit(1)
 		}
-    fmt.Println("assistant: ", res)
-
+		fmt.Println("assistant:", res)
 	}
 }
 
 func getUserInput() (string, error) {
 	reader := bufio.NewReader(os.Stdin)
 	line, err := reader.ReadString('\n')
-
 	if err != nil {
 		return "", fmt.Errorf("error in getting input: %s", err)
 	}
-
 	return line, nil
 }
 
@@ -114,34 +111,34 @@ func getResFromGpt(apiKey string, input string) (string, error) {
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
 	client := &http.Client{}
-
 	resp, err := client.Do(req)
-
 	if err != nil {
 		return "", fmt.Errorf("error making HTTP request: %s", err)
 	}
-
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body) // Read the response body for debugging
+		return "", fmt.Errorf("unexpected status code: %d, response body: %s", resp.StatusCode, body)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("error reading response body: %s", err)
 	}
 
 	var completion ChatCompletion
-
-	resErr := json.Unmarshal([]byte(body), &completion)
+	resErr := json.Unmarshal(body, &completion)
 	if resErr != nil {
-		return "", fmt.Errorf("Error unmarshaling JSON:", resErr)
+		return "", fmt.Errorf("Error unmarshaling JSON: %s", resErr)
+	}
+
+	if len(completion.Choices) == 0 {
+		return "", fmt.Errorf("no choices in the response")
 	}
 
 	messageContent := completion.Choices[0].Message.Content
-
-	return string(messageContent), nil
+	return messageContent, nil
 }
 
 type Message struct {
@@ -174,7 +171,7 @@ type ChatCompletion struct {
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		fmt.Println("Error executing command:", err)
 		os.Exit(1)
 	}
 }
